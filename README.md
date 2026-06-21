@@ -2,6 +2,14 @@
 
 Weakly-supervised Underwater Degradation-aware Feature Learning
 
+## Research pipeline
+
+新版完整 pipeline（V2 supervised token、task-aware cross-attention、feature validation、spatial maps、synthetic losses、SAM region pooling、Stage 2 condition）請見：
+
+[`RESEARCH_PIPELINE.md`](RESEARCH_PIPELINE.md)
+
+正式 training commands 已整理於該文件；本 repository 的 code verification 不會自動啟動長時間 training。
+
 ## Current experiment status
 
 四組 20-epoch 實驗、test evaluation、feature export、PCA/t-SNE 與最佳模型 Grad-CAM 均已完成。
@@ -19,7 +27,7 @@ Repository 保留程式碼、training logs、CSV/NPZ evaluation outputs、視覺
 
 [`EXPERIMENT_REPORT.md`](EXPERIMENT_REPORT.md)
 
-> **Important:** 目前 `token_head` 的 `z_deg` 沒有直接參與 training loss，因此 token head 本身沒有被 gradient 更新。現有 `z_deg` visualization 屬於探索性結果；接到 Stage 2 前建議先讓 score head 依賴 `z_deg`，或增加專門的 representation-learning objective。
+> **Baseline note:** 上表與 `results/` 是 V1 歷史結果；該版本的 `z_deg` 沒有直接參與 score loss，因此 visualization 只能視為探索性結果。現在程式預設已改為 `feature → z_deg → scores`，新版結果請輸出到 `results_v2/`，避免和 baseline 混合。
 
 這個 project 是從 `Underwater_FlowIE` 拆出的獨立 Stage 1 實驗工具。目的不是直接做 underwater image enhancement，而是先訓練一個 degradation-aware assessor，用 weak supervision 判斷 backbone feature 是否能表達水下退化資訊。
 
@@ -29,7 +37,7 @@ Repository 保留程式碼、training logs、CSV/NPZ evaluation outputs、視覺
 s_color
 s_blur
 s_contrast
-s_haze
+s_visibility_proxy
 q_quality
 z_deg
 ```
@@ -50,13 +58,22 @@ Underwater_Stage1/
 │   ├── stage1_train_assessor.py
 │   ├── stage1_eval_assessor.py
 │   ├── stage1_visualize_features.py
-│   └── stage1_gradcam.py
+│   ├── stage1_validate_features.py
+│   ├── stage1_visualize_spatial_features.py
+│   ├── stage1_batch_gradcam.py
+│   ├── stage1_generate_sam_masks.py
+│   └── stage1_region_inference.py
 └── stage1/
     ├── pseudo_labels.py
     ├── data.py
     ├── model.py
     ├── engine.py
-    └── metrics.py
+    ├── metrics.py
+    ├── spatial.py
+    ├── synthetic.py
+    ├── visibility.py
+    ├── regions.py
+    └── conditioning.py
 ```
 
 ## Setup
@@ -292,7 +309,7 @@ results/<experiment_name>/eval/features_test.npz
 ```bash
 image_path, image_name, pair_id, split, role, is_reference
 color_raw, sharpness_raw, contrast_raw, saturation_raw
-s_color, s_blur, s_contrast, s_haze, q_quality
+s_color, s_blur, s_contrast, s_visibility_proxy, q_quality
 ```
 
 所有圖片的原始 no-reference metrics 雖然一次計算完成，但 pseudo-label 的 min-max
@@ -424,14 +441,14 @@ DEVICE=mps ./scripts/run_post_training_evaluation.sh
 
 ## Grad-CAM
 
-針對指定 score 產生 Grad-CAM，例如 haze score：
+針對指定 score 產生 Grad-CAM，例如 weak visibility proxy：
 
 ```bash
 python scripts/stage1_gradcam.py \
   --checkpoint ./results/resnet50_frozen/best_stage1_assessor.pt \
   --image ./datasets/full/raw/392_img_.png \
-  --score s_haze \
-  --output ./results/resnet50_frozen/gradcam/392_haze.png
+  --score s_visibility_proxy \
+  --output ./results/resnet50_frozen/gradcam/392_visibility.png
 ```
 
 可用 score：
@@ -440,7 +457,7 @@ python scripts/stage1_gradcam.py \
 s_color
 s_blur
 s_contrast
-s_haze
+s_visibility_proxy
 q_quality
 ```
 

@@ -15,10 +15,20 @@ def main():
         default=None,
         help="UIEB root containing raw-890/reference-890 or raw/GT.",
     )
+    parser.add_argument("--architecture", choices=["token_mlp", "task_attention"], default="token_mlp")
+    parser.add_argument("--num-heads", type=int, default=4)
+    parser.add_argument("--decoder-layers", type=int, default=1)
+    parser.add_argument("--lambda-contrast", type=float, default=0.0)
+    parser.add_argument("--lambda-order", type=float, default=0.0)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--backbone", default="resnet50", help="Any timm model name, e.g. resnet50 or convnext_tiny.")
     parser.add_argument("--no-pretrained", action="store_true")
     parser.add_argument("--freeze-backbone", action="store_true")
+    parser.add_argument(
+        "--legacy-direct-score",
+        action="store_true",
+        help="Use the V1 baseline where scores bypass z_deg and are predicted directly from backbone features.",
+    )
     parser.add_argument("--image-size", type=int, default=224)
     parser.add_argument("--latent-dim", type=int, default=128)
     parser.add_argument("--dropout", type=float, default=0.2)
@@ -31,6 +41,10 @@ def main():
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
+    if args.legacy_direct_score and args.architecture != "token_mlp":
+        parser.error("--legacy-direct-score is only valid with --architecture token_mlp.")
+    if args.lambda_contrast < 0 or args.lambda_order < 0:
+        parser.error("Synthetic loss weights must be non-negative.")
 
     best_path = train_assessor(
         labels_csv=args.labels_csv,
@@ -50,6 +64,12 @@ def main():
         num_workers=args.num_workers,
         device_name=args.device,
         dataset_root=args.dataset_root,
+        score_from_token=not args.legacy_direct_score,
+        architecture=args.architecture,
+        num_heads=args.num_heads,
+        decoder_layers=args.decoder_layers,
+        lambda_contrast=args.lambda_contrast,
+        lambda_order=args.lambda_order,
     )
     print(f"Best checkpoint: {best_path}")
 

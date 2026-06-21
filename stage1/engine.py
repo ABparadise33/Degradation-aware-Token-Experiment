@@ -10,8 +10,9 @@ from tqdm import tqdm
 
 from .data import Stage1ImageDataset, Stage1PairDataset
 from .metrics import ranking_metrics, regression_metrics
-from .model import DegradationAssessor, load_assessor
+from .model import DegradationAssessor, TaskAwareDegradationAssessor, load_assessor
 from .pseudo_labels import SCORE_COLUMNS
+from .synthetic import synthetic_representation_losses
 
 
 def device_from_arg(name: str) -> torch.device:
@@ -47,6 +48,12 @@ def train_assessor(
     num_workers: int = 4,
     device_name: str = "auto",
     dataset_root: Optional[str] = None,
+    score_from_token: bool = True,
+    architecture: str = "token_mlp",
+    num_heads: int = 4,
+    decoder_layers: int = 1,
+    lambda_contrast: float = 0.0,
+    lambda_order: float = 0.0,
 ) -> str:
     os.makedirs(output_dir, exist_ok=True)
     device = device_from_arg(device_name)
@@ -68,13 +75,25 @@ def train_assessor(
         pin_memory=pin_memory,
     )
 
-    model = DegradationAssessor(
-        backbone=backbone,
-        pretrained=pretrained,
-        latent_dim=latent_dim,
-        dropout=dropout,
-        freeze_backbone=freeze_backbone,
-    ).to(device)
+    if architecture == "task_attention":
+        model = TaskAwareDegradationAssessor(
+            backbone=backbone,
+            pretrained=pretrained,
+            latent_dim=latent_dim,
+            dropout=dropout,
+            freeze_backbone=freeze_backbone,
+            num_heads=num_heads,
+            decoder_layers=decoder_layers,
+        ).to(device)
+    else:
+        model = DegradationAssessor(
+            backbone=backbone,
+            pretrained=pretrained,
+            latent_dim=latent_dim,
+            dropout=dropout,
+            freeze_backbone=freeze_backbone,
+            score_from_token=score_from_token,
+        ).to(device)
     optimizer = torch.optim.AdamW((p for p in model.parameters() if p.requires_grad), lr=lr, weight_decay=weight_decay)
 
     config = {
@@ -84,6 +103,13 @@ def train_assessor(
         "image_size": image_size,
         "score_columns": SCORE_COLUMNS,
         "freeze_backbone": freeze_backbone,
+        "score_from_token": score_from_token,
+        "architecture_version": 3 if architecture == "task_attention" else (2 if score_from_token else 1),
+        "architecture": architecture,
+        "num_heads": num_heads,
+        "decoder_layers": decoder_layers,
+        "lambda_contrast": lambda_contrast,
+        "lambda_order": lambda_order,
     }
     best_metric = float("inf")
     best_path = os.path.join(output_dir, "best_stage1_assessor.pt")
@@ -106,6 +132,9 @@ def train_assessor(
                 score_loss = F.smooth_l1_loss(raw_out["scores"], raw_scores) + F.smooth_l1_loss(ref_out["scores"], ref_scores)
                 rank_loss = F.relu(rank_margin - (ref_out["scores"][:, 4] - raw_out["scores"][:, 4])).mean()
                 loss = score_loss + lambda_rank * rank_loss
+                if lambda_contrast > 0.0 or lambda_order > 0.0:
+                    contrast_loss, order_loss = synthetic_representation_losses(model, ref_image)
+                    loss = loss + lambda_contrast * contrast_loss + lambda_order * order_loss
 
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
@@ -179,6 +208,8 @@ def evaluate_assessor(
     targets: List[np.ndarray] = []
     preds: List[np.ndarray] = []
     tokens: List[np.ndarray] = []
+    task_tokens: List[np.ndarray] = []
+    attention_maps: List[np.ndarray] = []
     records: List[Tuple[str, str, float]] = []
     csv_rows: List[Dict[str, object]] = []
 
@@ -191,6 +222,10 @@ def evaluate_assessor(
         targets.append(target)
         preds.append(pred)
         tokens.append(token)
+        if "task_tokens" in out:
+            task_tokens.append(out["task_tokens"].detach().cpu().numpy())
+        if "attention_maps" in out:
+            attention_maps.append(out["attention_maps"].detach().cpu().numpy())
         for i in range(pred.shape[0]):
             pair_id = batch["pair_id"][i]
             role = batch["role"][i]
@@ -222,8 +257,7 @@ def evaluate_assessor(
 
     if output_npz:
         os.makedirs(os.path.dirname(os.path.abspath(output_npz)), exist_ok=True)
-        np.savez_compressed(
-            output_npz,
+        arrays = dict(
             z_deg=tokens_arr,
             preds=preds_arr,
             targets=targets_arr,
@@ -232,5 +266,10 @@ def evaluate_assessor(
             roles=np.asarray([row["role"] for row in csv_rows]),
             score_columns=np.asarray(SCORE_COLUMNS),
         )
+        if task_tokens:
+            arrays["task_tokens"] = np.concatenate(task_tokens, axis=0)
+        if attention_maps:
+            arrays["attention_maps"] = np.concatenate(attention_maps, axis=0)
+        np.savez_compressed(output_npz, **arrays)
 
     return metrics

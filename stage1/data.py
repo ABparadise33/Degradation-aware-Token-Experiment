@@ -8,7 +8,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-from .pseudo_labels import SCORE_COLUMNS
+from .pseudo_labels import LEGACY_SCORE_ALIASES, SCORE_COLUMNS
 
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -94,7 +94,7 @@ class Stage1PairDataset(Dataset):
 
     @staticmethod
     def _scores(row: Dict[str, str]) -> torch.Tensor:
-        return torch.tensor([float(row[name]) for name in SCORE_COLUMNS], dtype=torch.float32)
+        return torch.tensor([score_value(row, name) for name in SCORE_COLUMNS], dtype=torch.float32)
 
     def __getitem__(self, idx: int) -> Dict[str, object]:
         item = self.pairs[idx]
@@ -132,10 +132,20 @@ class Stage1ImageDataset(Dataset):
         image = Image.open(row["image_path"]).convert("RGB")
         return {
             "image": self.transform(image),
-            "scores": torch.tensor([float(row[name]) for name in SCORE_COLUMNS], dtype=torch.float32),
+            "scores": torch.tensor([score_value(row, name) for name in SCORE_COLUMNS], dtype=torch.float32),
             "image_path": row["image_path"],
             "image_name": row["image_name"],
             "pair_id": row["pair_id"],
             "role": row["role"],
             "split": row["split"],
         }
+
+
+def score_value(row: Dict[str, str], name: str) -> float:
+    """Read a canonical score while accepting legacy metadata column names."""
+    if name in row and row[name] != "":
+        return float(row[name])
+    legacy_name = LEGACY_SCORE_ALIASES.get(name)
+    if legacy_name and legacy_name in row:
+        return float(row[legacy_name])
+    raise KeyError(f"Missing score column '{name}' (legacy alias: {legacy_name!r}).")

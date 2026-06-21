@@ -9,7 +9,8 @@ import numpy as np
 
 
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")
-SCORE_COLUMNS = ["s_color", "s_blur", "s_contrast", "s_haze", "q_quality"]
+SCORE_COLUMNS = ["s_color", "s_blur", "s_contrast", "s_visibility_proxy", "q_quality"]
+LEGACY_SCORE_ALIASES = {"s_visibility_proxy": "s_haze"}
 
 
 @dataclass
@@ -217,7 +218,7 @@ def build_pseudo_label_rows(
 
     rows: List[Dict[str, object]] = []
     for i, row in enumerate(metric_rows):
-        s_haze = 0.5 * contrast_scores[i] + 0.3 * low_sat_scores[i] + 0.2 * flat_scores[i]
+        s_visibility_proxy = 0.5 * contrast_scores[i] + 0.3 * low_sat_scores[i] + 0.2 * flat_scores[i]
         q_quality = 0.5 * quality_uiqm[i] + 0.5 * quality_uciqe[i]
         rows.append(
             {
@@ -225,7 +226,7 @@ def build_pseudo_label_rows(
                 "s_color": color_scores[i],
                 "s_blur": blur_scores[i],
                 "s_contrast": contrast_scores[i],
-                "s_haze": float(np.clip(s_haze, 0.0, 1.0)),
+                "s_visibility_proxy": float(np.clip(s_visibility_proxy, 0.0, 1.0)),
                 "q_quality": float(np.clip(q_quality, 0.0, 1.0)),
             }
         )

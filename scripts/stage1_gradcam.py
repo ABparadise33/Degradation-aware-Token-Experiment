@@ -46,28 +46,22 @@ def overlay_cam(image: Image.Image, cam: np.ndarray, output_path: str) -> None:
     plt.imsave(output_path, overlay)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Create Grad-CAM for a Stage 1 predicted degradation score.")
-    parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--image", required=True)
-    parser.add_argument("--output", required=True)
-    parser.add_argument("--score", default="s_haze", choices=SCORE_COLUMNS)
-    parser.add_argument("--target-layer", default=None, help="Optional model module name to hook.")
-    parser.add_argument("--image-size", type=int, default=224)
-    parser.add_argument("--device", default="auto")
-    parser.add_argument("--list-layers", action="store_true")
-    args = parser.parse_args()
-
-    device = device_from_arg(args.device)
-    model = load_assessor(args.checkpoint, device=device)
-
-    if args.list_layers:
-        for name, module in model.named_modules():
-            if isinstance(module, nn.Conv2d):
-                print(name)
-        return
-
-    layer_name, target_layer = (args.target_layer, module_by_name(model, args.target_layer)) if args.target_layer else find_last_conv(model)
+def create_gradcam(
+    checkpoint: str,
+    image_path: str,
+    output_path: str,
+    score_name: str,
+    device_name: str = "auto",
+    target_layer_name: Optional[str] = None,
+    image_size: int = 224,
+) -> str:
+    device = device_from_arg(device_name)
+    model = load_assessor(checkpoint, device=device)
+    layer_name, target_layer = (
+        (target_layer_name, module_by_name(model, target_layer_name))
+        if target_layer_name
+        else find_last_conv(model)
+    )
     activations = []
     gradients = []
 
@@ -79,16 +73,11 @@ def main():
 
     handle_fwd = target_layer.register_forward_hook(forward_hook)
     handle_bwd = target_layer.register_full_backward_hook(backward_hook)
-
-    image = Image.open(args.image).convert("RGB")
-    transform = build_transform(args.image_size, train=False)
-    tensor = transform(image).unsqueeze(0).to(device)
+    image = Image.open(image_path).convert("RGB")
+    tensor = build_transform(image_size, train=False)(image).unsqueeze(0).to(device)
     model.zero_grad(set_to_none=True)
-    output = model(tensor)
-    score_index = SCORE_COLUMNS.index(args.score)
-    target = output["scores"][0, score_index]
+    target = model(tensor)["scores"][0, SCORE_COLUMNS.index(score_name)]
     target.backward()
-
     handle_fwd.remove()
     handle_bwd.remove()
 
@@ -98,9 +87,40 @@ def main():
     grad = gradients[-1][0]
     weights = grad.mean(dim=(1, 2), keepdim=True)
     cam = torch.relu((weights * act).sum(dim=0))
-    cam = cam - cam.min()
-    cam = cam / (cam.max() + 1e-8)
-    overlay_cam(image, cam.detach().cpu().numpy(), args.output)
+    cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
+    overlay_cam(image, cam.detach().cpu().numpy(), output_path)
+    return layer_name
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Create Grad-CAM for a Stage 1 predicted degradation score.")
+    parser.add_argument("--checkpoint", required=True)
+    parser.add_argument("--image", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--score", default="s_visibility_proxy", choices=SCORE_COLUMNS)
+    parser.add_argument("--target-layer", default=None, help="Optional model module name to hook.")
+    parser.add_argument("--image-size", type=int, default=224)
+    parser.add_argument("--device", default="auto")
+    parser.add_argument("--list-layers", action="store_true")
+    args = parser.parse_args()
+
+    if args.list_layers:
+        device = device_from_arg(args.device)
+        model = load_assessor(args.checkpoint, device=device)
+        for name, module in model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                print(name)
+        return
+
+    layer_name = create_gradcam(
+        checkpoint=args.checkpoint,
+        image_path=args.image,
+        output_path=args.output,
+        score_name=args.score,
+        device_name=args.device,
+        target_layer_name=args.target_layer,
+        image_size=args.image_size,
+    )
     print(f"Wrote {args.score} Grad-CAM from layer '{layer_name}' to {args.output}")
 
 

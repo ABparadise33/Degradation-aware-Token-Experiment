@@ -4,4 +4,6 @@ __pycache__/
 *.py[cod]
 
 datasets/
-results/**/*.pt
+*.pt
+results_v2/
+results_task_attention/

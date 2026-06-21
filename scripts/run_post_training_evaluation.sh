@@ -20,7 +20,7 @@ do
     --output-dir "results/${model}/vis"
 done
 
-for score in s_color s_blur s_contrast s_haze q_quality
+for score in s_color s_blur s_contrast s_visibility_proxy q_quality
 do
   echo "===== Grad-CAM ${score} ====="
   python scripts/stage1_gradcam.py \
