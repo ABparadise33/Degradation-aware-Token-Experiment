@@ -8,26 +8,36 @@ Weakly-supervised Underwater Degradation-aware Feature Learning
 
 [`RESEARCH_PIPELINE.md`](RESEARCH_PIPELINE.md)
 
+不使用五個固定 pseudo-score 作為主訓練目標的 anonymous-slot self-supervised pipeline 請見：
+
+[`SELF_SUPERVISED_PIPELINE.md`](SELF_SUPERVISED_PIPELINE.md)
+
 正式 training commands 已整理於該文件；本 repository 的 code verification 不會自動啟動長時間 training。
 
 ## Current experiment status
 
-四組 20-epoch 實驗、test evaluation、feature export、PCA/t-SNE 與最佳模型 Grad-CAM 均已完成。
+V2 四組 20-epoch training/evaluation、Task-aware baseline、feature validation、task-token specialization、attention faithfulness 與 synthetic blur sensitivity baseline 均已完成。
 
-Repository 保留程式碼、training logs、CSV/NPZ evaluation outputs、視覺化圖片與實驗報告；大型 `.pt` checkpoints 與 UIEB dataset 不上傳。重新執行 checkpoint evaluation 時，請將本機權重放回 `results/<model>/best_stage1_assessor.pt`。
-
-| Model | Average 5-score MAE ↓ | Quality ranking ↑ |
+| Completed model | Average 5-score MAE ↓ | Quality ranking ↑ |
 |---|---:|---:|
-| **ConvNeXt-Tiny fine-tune** | **0.056379** | **1.000000** |
-| ConvNeXt-Tiny frozen | 0.082538 | 0.979310 |
-| ResNet-50 frozen | 0.105130 | 0.572414 |
-| ResNet-50 fine-tune | 0.123855 | 0.365517 |
+| **Task-aware ConvNeXt-Tiny fine-tune** | **0.049293** | **1.000000** |
+| V2 ConvNeXt-Tiny fine-tune | 0.061686 | 0.993103 |
+| V2 ConvNeXt-Tiny frozen | 0.083868 | 0.979310 |
+| V2 ResNet-50 frozen | 0.111144 | 0.510345 |
+| V2 ResNet-50 fine-tune | 0.122876 | 0.496552 |
 
-完整架構、pseudo-label、metric 定義、四模型比較、PCA/t-SNE、Grad-CAM 與限制分析請見：
+Task-aware model 的 regression 最佳，但五個 task tokens 仍高度相似，attention faithfulness 也只部分成立。Synthetic blur supervision + diversity-loss ablation 目前正在執行，尚未列入 completed 結果。
+
+完整數字、指標定義、圖像分析與限制請見：
 
 [`EXPERIMENT_REPORT.md`](EXPERIMENT_REPORT.md)
 
-> **Baseline note:** 上表與 `results/` 是 V1 歷史結果；該版本的 `z_deg` 沒有直接參與 score loss，因此 visualization 只能視為探索性結果。現在程式預設已改為 `feature → z_deg → scores`，新版結果請輸出到 `results_v2/`，避免和 baseline 混合。
+公開的 evaluation 圖片與精簡 CSV 位於：
+
+- [`reports/assets`](reports/assets)
+- [`reports/metrics`](reports/metrics)
+
+Repository 不上傳 UIEB dataset、`.pt` checkpoints 或大型 feature dumps。
 
 這個 project 是從 `Underwater_FlowIE` 拆出的獨立 Stage 1 實驗工具。目的不是直接做 underwater image enhancement，而是先訓練一個 degradation-aware assessor，用 weak supervision 判斷 backbone feature 是否能表達水下退化資訊。
 
