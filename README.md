@@ -8,6 +8,10 @@ Weakly-supervised Underwater Degradation-aware Feature Learning
 
 [`RESEARCH_PIPELINE.md`](RESEARCH_PIPELINE.md)
 
+不使用五個固定 pseudo-score 作為主訓練目標的 anonymous-slot self-supervised pipeline 請見：
+
+[`SELF_SUPERVISED_PIPELINE.md`](SELF_SUPERVISED_PIPELINE.md)
+
 正式 training commands 已整理於該文件；本 repository 的 code verification 不會自動啟動長時間 training。
 
 ## Current experiment status

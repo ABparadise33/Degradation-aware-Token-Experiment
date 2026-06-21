@@ -6,7 +6,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torch
 
 from stage1.model import DegradationAssessor, TaskAwareDegradationAssessor
+from stage1.mixed_degradation import apply_random_mixed_degradation, sample_mixed_recipe
 from stage1.regions import compose_region_maps, masked_average_pool
+from stage1.self_supervised_engine import forward_self_supervised_views
+from stage1.self_supervised_losses import self_supervised_objective
+from stage1.self_supervised_model import SelfSupervisedDegradationEncoder
 from stage1.synthetic import synthetic_representation_losses
 from stage1.synthetic import (
     attention_diversity_loss,
@@ -51,6 +55,28 @@ def main():
     assert torch.isfinite(
         contrastive + order + blur_regression + blur_order + diversity + attention_diversity
     )
+
+    selfsup_model = SelfSupervisedDegradationEncoder(
+        backbone="resnet18",
+        pretrained=False,
+        latent_dim=32,
+        num_slots=4,
+        num_heads=4,
+    )
+    recipe = sample_mixed_recipe(2, image.device, image.dtype)
+    degraded, returned_recipe, severity = apply_random_mixed_degradation(image, recipe)
+    assert degraded.shape == image.shape
+    assert returned_recipe.shape == (2, 5)
+    assert severity.shape == (2,)
+    selfsup_output = selfsup_model(image)
+    assert selfsup_output["z_deg"].shape == (2, 32)
+    assert selfsup_output["slot_tokens"].shape == (2, 4, 32)
+    assert selfsup_output["slot_attention"].shape[:2] == (2, 4)
+    assert selfsup_output["m_deg"].shape == (2, 1)
+    selfsup_views = forward_self_supervised_views(selfsup_model, image, image)
+    selfsup_losses = self_supervised_objective(selfsup_views)
+    assert torch.isfinite(selfsup_losses["total"])
+    selfsup_losses["total"].backward()
 
     feature = torch.randn(2, 16, 8, 8)
     masks = torch.zeros(2, 3, 64, 64)

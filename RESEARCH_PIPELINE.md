@@ -4,6 +4,8 @@
 
 > 本次只完成程式碼、commands 與 smoke tests；沒有代替使用者執行正式 training。
 
+目前上述方法都定位為 supervised baselines。下一階段不以五個 pseudo scores 作為主訓練 target 的 anonymous-slot representation learning，請見 [`SELF_SUPERVISED_PIPELINE.md`](SELF_SUPERVISED_PIPELINE.md)。
+
 ## 0. 保留既有 baseline
 
 既有 `results/` 是 V1 baseline：
