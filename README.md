@@ -6,6 +6,8 @@ Weakly-supervised Underwater Degradation-aware Feature Learning
 
 四組 20-epoch 實驗、test evaluation、feature export、PCA/t-SNE 與最佳模型 Grad-CAM 均已完成。
 
+Repository 保留程式碼、training logs、CSV/NPZ evaluation outputs、視覺化圖片與實驗報告；大型 `.pt` checkpoints 與 UIEB dataset 不上傳。重新執行 checkpoint evaluation 時，請將本機權重放回 `results/<model>/best_stage1_assessor.pt`。
+
 | Model | Average 5-score MAE ↓ | Quality ranking ↑ |
 |---|---:|---:|
 | **ConvNeXt-Tiny fine-tune** | **0.056379** | **1.000000** |

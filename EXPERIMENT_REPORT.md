@@ -225,6 +225,8 @@ Quality Grad-CAM：
 
 ## 12. Reproduction commands
 
+GitHub repository 不包含 UIEB image dataset 或 `.pt` checkpoints。以下命令假設資料位於 `../Underwater_Dataset/UIEB`，且本機 checkpoint 位於 `results/<model>/best_stage1_assessor.pt`。
+
 重新評估四組 checkpoint：
 
 ```bash
