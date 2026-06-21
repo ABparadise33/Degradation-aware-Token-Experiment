@@ -1,0 +1,10 @@
+numpy<2.0.0
+opencv-python-headless
+pillow
+torch
+torchvision
+timm
+scipy
+matplotlib
+scikit-learn
+tqdm
