@@ -190,6 +190,87 @@ python scripts/stage1_visibility_proxy.py \
 
 這仍是 proxy，不能宣稱為真實水下 transmission ground truth。
 
+## Task-token specialization、attention faithfulness、blur diagnostics
+
+三項診斷可一次執行：
+
+```bash
+DEVICE=mps \
+EXPERIMENT_DIR=./results_task_attention/convnext_tiny_finetune \
+./scripts/run_task_aware_diagnostics.sh
+```
+
+### Per-task token validation
+
+輸出：
+
+```text
+eval/task_token_validation/task_token_probe_matrix.csv
+eval/task_token_validation/task_token_summary.csv
+eval/task_token_validation/task_token_cosine_similarity.csv
+eval/task_token_validation/task_token_probe_mae.png
+eval/task_token_validation/task_token_cosine_similarity.png
+```
+
+理想狀況是 probe MAE matrix 的對角線最低，且不同 task token 的 cosine similarity 明顯低於 1。
+
+### Attention faithfulness
+
+對 attention top 10%、bottom 10% 與 random 10% 區域分別遮罩，再重新 forward：
+
+```text
+top absolute score change > random > bottom
+```
+
+輸出：
+
+```text
+eval/attention_faithfulness/attention_faithfulness_details.csv
+eval/attention_faithfulness/attention_faithfulness_summary.csv
+```
+
+`top_selectivity > 0` 表示遮罩該 task 的 top-attention region，對自己的 score 影響大於其他四項 score。
+
+### Synthetic blur response
+
+對 Gaussian blur 與 motion blur severity `0→1` 檢查 predicted `s_blur`：
+
+```text
+Spearman(severity, prediction) 越接近 1 越好
+increasing_step_fraction 越接近 1 越好
+prediction_range 不應接近 0
+```
+
+輸出：
+
+```text
+eval/synthetic_blur/synthetic_blur_details.csv
+eval/synthetic_blur/synthetic_blur_summary.csv
+```
+
+### 下一版 blur/disentanglement training
+
+建議輸出到新的 experiment directory，不覆蓋現有 task-aware baseline：
+
+```bash
+DEVICE=mps \
+OUTPUT_DIR=./results_task_attention_blur_diverse/convnext_tiny_finetune \
+LAMBDA_BLUR_SYNTHETIC=0.1 \
+LAMBDA_BLUR_ORDER=0.1 \
+LAMBDA_TASK_DIVERSITY=0.01 \
+LAMBDA_ATTENTION_DIVERSITY=0.01 \
+./scripts/run_task_attention_experiment.sh
+```
+
+其中：
+
+```text
+L_blur_synthetic：要求 severe/mild predicted blur gap 接近已知 synthetic severity gap
+L_blur_order：要求 severe blur score 高於 mild blur
+L_task_diversity：降低五個 task token 的 cosine collapse
+L_attention_diversity：降低五張 attention map 完全相同的情況
+```
+
 ## 6. Synthetic degradation learning
 
 `stage1/synthetic.py` 支援：

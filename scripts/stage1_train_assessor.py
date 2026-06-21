@@ -20,6 +20,10 @@ def main():
     parser.add_argument("--decoder-layers", type=int, default=1)
     parser.add_argument("--lambda-contrast", type=float, default=0.0)
     parser.add_argument("--lambda-order", type=float, default=0.0)
+    parser.add_argument("--lambda-blur-synthetic", type=float, default=0.0)
+    parser.add_argument("--lambda-blur-order", type=float, default=0.0)
+    parser.add_argument("--lambda-task-diversity", type=float, default=0.0)
+    parser.add_argument("--lambda-attention-diversity", type=float, default=0.0)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--backbone", default="resnet50", help="Any timm model name, e.g. resnet50 or convnext_tiny.")
     parser.add_argument("--no-pretrained", action="store_true")
@@ -43,7 +47,14 @@ def main():
     args = parser.parse_args()
     if args.legacy_direct_score and args.architecture != "token_mlp":
         parser.error("--legacy-direct-score is only valid with --architecture token_mlp.")
-    if args.lambda_contrast < 0 or args.lambda_order < 0:
+    if min(
+        args.lambda_contrast,
+        args.lambda_order,
+        args.lambda_blur_synthetic,
+        args.lambda_blur_order,
+        args.lambda_task_diversity,
+        args.lambda_attention_diversity,
+    ) < 0:
         parser.error("Synthetic loss weights must be non-negative.")
 
     best_path = train_assessor(
@@ -70,6 +81,10 @@ def main():
         decoder_layers=args.decoder_layers,
         lambda_contrast=args.lambda_contrast,
         lambda_order=args.lambda_order,
+        lambda_blur_synthetic=args.lambda_blur_synthetic,
+        lambda_blur_order=args.lambda_blur_order,
+        lambda_task_diversity=args.lambda_task_diversity,
+        lambda_attention_diversity=args.lambda_attention_diversity,
     )
     print(f"Best checkpoint: {best_path}")
 

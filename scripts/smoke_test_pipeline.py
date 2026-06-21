@@ -8,6 +8,11 @@ import torch
 from stage1.model import DegradationAssessor, TaskAwareDegradationAssessor
 from stage1.regions import compose_region_maps, masked_average_pool
 from stage1.synthetic import synthetic_representation_losses
+from stage1.synthetic import (
+    attention_diversity_loss,
+    synthetic_blur_losses,
+    task_token_diversity_loss,
+)
 
 
 def main():
@@ -40,7 +45,12 @@ def main():
     assert task_output["task_tokens"].shape == (2, 5, 32)
     assert task_output["attention_maps"].shape[:2] == (2, 5)
     contrastive, order = synthetic_representation_losses(task_model, image)
-    assert torch.isfinite(contrastive + order)
+    blur_regression, blur_order = synthetic_blur_losses(task_model, image)
+    diversity = task_token_diversity_loss(task_output["task_tokens"])
+    attention_diversity = attention_diversity_loss(task_output["attention_maps"])
+    assert torch.isfinite(
+        contrastive + order + blur_regression + blur_order + diversity + attention_diversity
+    )
 
     feature = torch.randn(2, 16, 8, 8)
     masks = torch.zeros(2, 3, 64, 64)

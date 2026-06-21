@@ -13,6 +13,10 @@ BATCH_SIZE="${BATCH_SIZE:-16}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 LAMBDA_CONTRAST="${LAMBDA_CONTRAST:-0.0}"
 LAMBDA_ORDER="${LAMBDA_ORDER:-0.0}"
+LAMBDA_BLUR_SYNTHETIC="${LAMBDA_BLUR_SYNTHETIC:-0.0}"
+LAMBDA_BLUR_ORDER="${LAMBDA_BLUR_ORDER:-0.0}"
+LAMBDA_TASK_DIVERSITY="${LAMBDA_TASK_DIVERSITY:-0.0}"
+LAMBDA_ATTENTION_DIVERSITY="${LAMBDA_ATTENTION_DIVERSITY:-0.0}"
 
 python scripts/stage1_train_assessor.py \
   --labels-csv "$LABELS_CSV" \
@@ -29,6 +33,10 @@ python scripts/stage1_train_assessor.py \
   --num-workers "$NUM_WORKERS" \
   --lambda-contrast "$LAMBDA_CONTRAST" \
   --lambda-order "$LAMBDA_ORDER" \
+  --lambda-blur-synthetic "$LAMBDA_BLUR_SYNTHETIC" \
+  --lambda-blur-order "$LAMBDA_BLUR_ORDER" \
+  --lambda-task-diversity "$LAMBDA_TASK_DIVERSITY" \
+  --lambda-attention-diversity "$LAMBDA_ATTENTION_DIVERSITY" \
   --device "$DEVICE"
 
 python scripts/stage1_eval_assessor.py \

@@ -12,7 +12,12 @@ from .data import Stage1ImageDataset, Stage1PairDataset
 from .metrics import ranking_metrics, regression_metrics
 from .model import DegradationAssessor, TaskAwareDegradationAssessor, load_assessor
 from .pseudo_labels import SCORE_COLUMNS
-from .synthetic import synthetic_representation_losses
+from .synthetic import (
+    attention_diversity_loss,
+    synthetic_blur_losses,
+    synthetic_representation_losses,
+    task_token_diversity_loss,
+)
 
 
 def device_from_arg(name: str) -> torch.device:
@@ -54,6 +59,10 @@ def train_assessor(
     decoder_layers: int = 1,
     lambda_contrast: float = 0.0,
     lambda_order: float = 0.0,
+    lambda_blur_synthetic: float = 0.0,
+    lambda_blur_order: float = 0.0,
+    lambda_task_diversity: float = 0.0,
+    lambda_attention_diversity: float = 0.0,
 ) -> str:
     os.makedirs(output_dir, exist_ok=True)
     device = device_from_arg(device_name)
@@ -110,6 +119,10 @@ def train_assessor(
         "decoder_layers": decoder_layers,
         "lambda_contrast": lambda_contrast,
         "lambda_order": lambda_order,
+        "lambda_blur_synthetic": lambda_blur_synthetic,
+        "lambda_blur_order": lambda_blur_order,
+        "lambda_task_diversity": lambda_task_diversity,
+        "lambda_attention_diversity": lambda_attention_diversity,
     }
     best_metric = float("inf")
     best_path = os.path.join(output_dir, "best_stage1_assessor.pt")
@@ -135,6 +148,25 @@ def train_assessor(
                 if lambda_contrast > 0.0 or lambda_order > 0.0:
                     contrast_loss, order_loss = synthetic_representation_losses(model, ref_image)
                     loss = loss + lambda_contrast * contrast_loss + lambda_order * order_loss
+                if lambda_blur_synthetic > 0.0 or lambda_blur_order > 0.0:
+                    blur_regression, blur_order = synthetic_blur_losses(model, ref_image)
+                    loss = (
+                        loss
+                        + lambda_blur_synthetic * blur_regression
+                        + lambda_blur_order * blur_order
+                    )
+                if lambda_task_diversity > 0.0 and "task_tokens" in raw_out:
+                    diversity = (
+                        task_token_diversity_loss(raw_out["task_tokens"])
+                        + task_token_diversity_loss(ref_out["task_tokens"])
+                    )
+                    loss = loss + lambda_task_diversity * diversity
+                if lambda_attention_diversity > 0.0 and "attention_maps" in raw_out:
+                    attention_diversity = (
+                        attention_diversity_loss(raw_out["attention_maps"])
+                        + attention_diversity_loss(ref_out["attention_maps"])
+                    )
+                    loss = loss + lambda_attention_diversity * attention_diversity
 
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
